@@ -38,7 +38,7 @@ export const AppState = {
   /** Feature/rendering options */
   options: {
     includeTrees:    true,
-    textBackground:  true,
+    textBackground:  false,
     inMeters:        false,
     includeTopo:     false,
     topoInterval:   2.0,   // meters
