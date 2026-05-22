@@ -1,0 +1,14 @@
+# Claude AI assistant files
+CLAUDE.md
+
+# macOS
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local notes
+*.local.md

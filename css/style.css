@@ -363,7 +363,7 @@ body {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 16px;
   font-family: inherit;
   color: var(--color-text);
   padding: 11px 0;
@@ -635,7 +635,7 @@ body {
 }
 
 .preset-select {
-  font-size: 13px;
+  font-size: 16px;
   padding: 5px 8px;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -835,7 +835,7 @@ body {
 
 .select-input {
   font-family: inherit;
-  font-size: 13px;
+  font-size: 16px;
   padding: 5px 10px;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -911,7 +911,7 @@ body {
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   font-family: inherit;
   color: var(--color-text);
