@@ -46,6 +46,7 @@ export const AppState = {
     holeWidth:        50,    // yards from centerline
     shortFilter:      1.0,   // multiplier for near-tee filtering
     drawAllFeatures:  false, // skip all feature filtering
+	textSizeMult: 1.0, // New property for text scaling
   },
 
   /** Generation state (updated by generator.js) */
@@ -135,6 +136,9 @@ const dom = {
   optHoleWidth:     document.getElementById('opt-hole-width'),
   holeWidthVal:     document.getElementById('hole-width-val'),
   optDrawAll:       document.getElementById('opt-draw-all'),
+  optTextSize: 		document.getElementById('opt-text-size'), // New slider input
+  textSizeVal: 		document.getElementById('text-size-val'), // New span to show the value
+};
 
   // Step 2 — summary / course name
   courseNameInput: document.getElementById('course-name-input'),
@@ -355,6 +359,13 @@ function bindOptionInputs() {
   dom.regenShortFilter.addEventListener('input', () => {
     dom.regenFilterVal.textContent = `${parseFloat(dom.regenShortFilter.value).toFixed(1)}×`;
   });
+
+	if (dom.optTextSize) {
+		dom.optTextSize.addEventListener('input', () => {
+		const val = parseFloat(dom.optTextSize.value);
+		AppState.options.textSizeMult = val;
+		if (dom.textSizeVal) dom.textSizeVal.textContent = `${val.toFixed(1)}x`;
+		}); 
 }
 
 /** Populate the course summary shown at bottom of Step 2 */

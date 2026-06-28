@@ -165,6 +165,9 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   // ── 8.5. Distance annotations ───────────────────────────────────────────────
   // Font size based on yards-per-pixel so labels stay proportional whether the
   // canvas covers one hole or an entire course.  Target: ~3 yards tall.
+  // Apply the text size multiplier from options
+  const baseFontSize = Math.max(11, Math.round(3.5 / ypp));
+  const fontSize = baseFontSize * (options.textSizeMult || 1.0);
   const fontSize = Math.max(11, Math.round(3.5 / ypp));
   const textColor = colors.text;
   const effectivePar = par ?? 4;
