@@ -136,8 +136,7 @@ const dom = {
   optHoleWidth:     document.getElementById('opt-hole-width'),
   holeWidthVal:     document.getElementById('hole-width-val'),
   optDrawAll:       document.getElementById('opt-draw-all'),
-  optTextSize: 		document.getElementById('opt-text-size'), // New slider input
-  textSizeVal: 		document.getElementById('text-size-val'), // New span to show the value
+
 };
 
   // Step 2 — summary / course name
@@ -207,6 +206,10 @@ const dom = {
 
   btnBackToStep2: document.getElementById('btn-back-to-step2'),
   btnStartOver:   document.getElementById('btn-start-over'),
+  
+  optTextSize: document.getElementById('opt-text-size'), // New slider input
+  textSizeVal: document.getElementById('text-size-val'), // New span to show the value
+  
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
