@@ -1,4 +1,4 @@
-This is a fork of the excelent openyardage project.
+This is a fork of the excelent openyardage projec by @npilk
 
 # New features
 - SVG images
