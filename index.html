@@ -252,6 +252,21 @@
                 <div class="slider-hint">Features more than this distance from the hole centerline are filtered out</div>
               </div>
 
+              <!-- NEW TEXT SIZE SLIDER -->
+              <div class="slider-row">
+                <label class="slider-label" for="opt-text-size">
+                  Text Size
+                  <span class="slider-value" id="text-size-val">1.0x</span>
+                </label>
+                <input
+                  type="range"
+                  id="opt-text-size"
+                  class="range-input"
+                  min="0.5" max="2.0" step="0.1" value="1.0"
+                />
+                <div class="slider-hint">Scales the distance annotations up or down</div>
+              </div>
+
               <div class="toggle-row">
                 <label class="toggle-label" for="opt-draw-all">Draw all features (no filter)</label>
                 <label class="toggle-switch">
@@ -456,6 +471,15 @@
           <button class="btn btn-primary" id="btn-download-print-pdf">⬇ Download</button>
         </div>
 
+        <!-- NEW SVG EXPORT OPTION -->
+        <div class="export-option">
+          <div class="export-option-info">
+            <div class="export-option-name">SVG (Current Hole)</div>
+            <div class="export-option-desc">Vector graphic of the currently selected hole. Ideal for editing in vector design software.</div>
+          </div>
+          <button class="btn btn-secondary" id="btn-download-svg">⬇ Download</button>
+        </div>
+
       </div>
     </div>
   </div>
@@ -490,6 +514,8 @@
   <!-- d3-contour + d3-array (for elevation contours, Phase 7) -->
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-contour@4"></script>
+  <!-- Canvas2Svg (for SVG vector export) -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas2svg@1.0.19/canvas2svg.js"></script>
 
   <!-- App entry point (ES module) -->
   <script type="module" src="js/app.js"></script>
