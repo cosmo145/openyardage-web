@@ -1,56 +1,17 @@
 /**
  * generator.js — Top-level generation orchestrator
- *
- * Coordinates the full pipeline: OSM fetch → render → PDF assembly.
- * Called by app.js when the user clicks "Generate Yardage Book".
- *
- * Pipeline:
- *   1. fetchCourseData(bbox)               → hole ways + all features in one request (osm.js)
- *   2. For each hole:
- *        a. categorizeFeatures(osmResult)  → sorted feature arrays (osm.js)
- *        c. renderHole(...)                → OffscreenCanvas, full hole (renderer.js)
- *        d. renderGreenInset(...)          → OffscreenCanvas, green close-up (renderer.js)
- *        e. [optional] fetchElevation(...) → contour arrays (elevation.js)
- *   3. onDone({ holeCount, renderedHoles, osmData }) — PDF assembled lazily on download
  */
-
 import { fetchCourseData, categorizeFeatures } from './osm.js';
-import { renderHole, renderGreenInset, canvasToDataUrl } from './renderer.js';
+import { renderHole, renderGreenInset } from './renderer.js';
 import { fetchElevationGrid } from './elevation.js';
 
-/**
- * Main entry point. Called from app.js.
- *
- * @param {object} opts
- * @param {{ latmin, lonmin, latmax, lonmax }} opts.bbox
- * @param {string}   opts.courseName
- * @param {object}   opts.colors       — AppState.colors
- * @param {object}   opts.options      — AppState.options
- * @param {function} opts.onProgress   — ({ pct, message }) => void
- * @param {function} opts.onHoleStatus — ({ holeNum, par, status, detail }) => void
- * @param {function} opts.onDone       — ({ holeCount, renderedHoles, osmData }) => void
- * @param {function} opts.onError      — ({ message }) => void
- */
-export async function generateBook({
-  bbox,
-  courseName,
-  colors,
-  options,
-  cachedOsmData,
-  onProgress,
-  onHoleStatus,
-  onDone,
-  onError,
-}) {
+export async function generateBook({ bbox, courseName, colors, options, cachedOsmData, onProgress, onHoleStatus, onDone, onError }) {
   try {
-    // ── Step 1: Course data (fetch or reuse cache) ────────────────────────────
     let holeWays, allFeatures;
-
     if (cachedOsmData) {
       onProgress({ pct: 2, message: 'Using cached course data…' });
       allFeatures = cachedOsmData.allFeatures;
-      holeWays = allFeatures.ways
-        .filter(w => w.tags.golf === 'hole' && w.nodes.length >= 2)
+      holeWays = allFeatures.ways.filter(w => w.tags.golf === 'hole' && w.nodes.length >= 2)
         .sort((a, b) => (parseInt(a.tags.ref, 10) || 0) - (parseInt(b.tags.ref, 10) || 0));
     } else {
       onProgress({ pct: 2, message: 'Fetching course data from OpenStreetMap…' });
@@ -59,155 +20,71 @@ export async function generateBook({
       allFeatures = { ways: fetched.ways, nodes: fetched.nodes, relations: fetched.relations };
     }
 
-    if (!holeWays || holeWays.length === 0) {
-      throw new Error(
-        'No golf holes found in the selected area. Make sure the course is mapped ' +
-        'in OpenStreetMap with <code>golf=hole</code> tags on the hole ways. ' +
-        '<a href="https://github.com/npilk/hacker-yardage/blob/main/docs/howtomap.md" target="_blank" rel="noopener">More info here.</a>'
-      );
-    }
-
+    if (!holeWays || holeWays.length === 0) throw new Error('No golf holes found in the selected area.');
     const totalHoles = holeWays.length;
     onProgress({ pct: 14, message: `Found ${totalHoles} hole${totalHoles !== 1 ? 's' : ''}. Processing…` });
 
-    // ── Step 2: Elevation data (fetch or reuse cache) ─────────────────────────
     let elevationGrid = null;
     if (options.includeTopo) {
-      if (cachedOsmData?.elevationGrid) {
-        elevationGrid = cachedOsmData.elevationGrid;
-      } else {
-        onProgress({ pct: 16, message: 'Fetching elevation data…' });
-        try {
-          elevationGrid = await fetchElevationGrid(bbox);
-        } catch (e) {
-          console.warn('Elevation fetch failed, skipping contours:', e);
-        }
-      }
+      if (cachedOsmData?.elevationGrid) elevationGrid = cachedOsmData.elevationGrid;
+      else { onProgress({ pct: 16, message: 'Fetching elevation data…' }); try { elevationGrid = await fetchElevationGrid(bbox); } catch (e) {} }
     }
 
-    // ── Step 3: Render each hole ──────────────────────────────────────────────
     const renderedHoles = [];
-    const pctPerHole = 70 / totalHoles;   // 14%–84% of progress bar
+    const pctPerHole = 70 / totalHoles;
 
     for (let i = 0; i < holeWays.length; i++) {
-      const holeWay = holeWays[i];
-      const holeNum = parseInt(holeWay.tags?.ref, 10) || (i + 1);
-      const par     = parseInt(holeWay.tags?.par, 10) || null;
-
+      const holeWay = holeWays[i], holeNum = parseInt(holeWay.tags?.ref, 10) || (i + 1), par = parseInt(holeWay.tags?.par, 10) || null;
       onHoleStatus({ holeNum, par, status: 'running' });
 
       try {
-        // Categorize features relevant to this hole
         const features = categorizeFeatures(allFeatures, bbox, holeWay);
+        if (!features.green) { onProgress({ pct: 14 + (i + 1) * pctPerHole, message: `Skipped hole ${holeNum}` }); continue; }
 
-        // Skip holes with no green — likely frisbee golf or bad OSM data
-        if (!features.green) {
-          console.warn(`Hole ${holeNum}: no golf=green found — skipping`);
-          onHoleStatus({ holeNum, par, status: 'skipped', detail: 'No green found' });
-          const pct = 14 + (i + 1) * pctPerHole;
-          onProgress({ pct, message: `Skipped hole ${holeNum} (no green mapped)` });
-          continue;
-        }
+        const holeResult = await renderHole({ holeWay, features, elevationGrid, bbox, colors, options, holeNum, par });
+        const greenResult = await renderGreenInset({ holeWay, features, bbox, colors, options, holeNum, par });
 
-        // Render full hole image
-        const holeCanvas = await renderHole({
-          holeWay,
-          features,
-          elevationGrid,
-          bbox,
-          colors,
-          options,
-          holeNum,
-          par,
+        const holeSvg = holeResult.svgString;
+        const greenSvg = greenResult.svgString;
+        
+        // Convert SVG directly to a Data URL for the HTML image viewer
+        const holeImageUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(holeSvg);
+        const greenImageUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(greenSvg);
+
+        renderedHoles.push({
+          holeNum, par,
+          holeImageUrl, greenImageUrl,
+          holeSvg, greenSvg,
+          holeWidth: holeResult.width, holeHeight: holeResult.height,
+          greenWidth: greenResult.width, greenHeight: greenResult.height,
+          holeWay
         });
 
-        // Render green inset
-        const greenCanvas = await renderGreenInset({
-          holeWay,
-          features,
-          bbox,
-          colors,
-          options,
-          holeNum,
-          par,
-        });
-
-        // Convert to data URLs and release canvas backing stores immediately
-        // to avoid accumulating large GPU textures across all 18 holes.
-        const holeWidth  = holeCanvas.width;
-        const holeHeight = holeCanvas.height;
-        const greenWidth  = greenCanvas.width;
-        const greenHeight = greenCanvas.height;
-        const holeImageUrl  = await canvasToDataUrl(holeCanvas);
-        holeCanvas.width = 1; holeCanvas.height = 1;
-        const greenImageUrl = await canvasToDataUrl(greenCanvas);
-        greenCanvas.width = 1; greenCanvas.height = 1;
-
-        renderedHoles.push({ holeNum, par, holeImageUrl, greenImageUrl, holeWidth, holeHeight, greenWidth, greenHeight, holeWay });
-
-        const pct = 14 + (i + 1) * pctPerHole;
-        onProgress({ pct, message: `Rendered hole ${holeNum} of ${totalHoles}…` });
-        onHoleStatus({ holeNum, par, status: 'done', detail: `Par ${par}` });
-
-      } catch (holeErr) {
-        console.error(`Error rendering hole ${holeNum}:`, holeErr);
-        onHoleStatus({ holeNum, par, status: 'error', detail: holeErr.message });
-        // Continue with remaining holes
-      }
+        onProgress({ pct: 14 + (i + 1) * pctPerHole, message: `Rendered hole ${holeNum} of ${totalHoles}…` });
+      } catch (holeErr) { console.error(holeErr); }
     }
 
-    if (renderedHoles.length === 0) {
-      throw new Error('No holes could be rendered. Check that the course is fully mapped in OpenStreetMap.');
-    }
+    if (renderedHoles.length === 0) throw new Error('No holes could be rendered.');
+    onProgress({ pct: 100, message: `Done!` });
+    onDone({ holeCount: renderedHoles.length, renderedHoles, osmData: { allFeatures, elevationGrid, bbox } });
 
-    onProgress({ pct: 100, message: `Done! ${renderedHoles.length} hole${renderedHoles.length !== 1 ? 's' : ''} rendered.` });
-    onDone({
-      holeCount: renderedHoles.length,
-      renderedHoles,
-      osmData: { allFeatures, elevationGrid, bbox },
-    });
-
-  } catch (err) {
-    console.error('Generation failed:', err);
-    onError({ message: err.message || 'An unexpected error occurred.' });
-  }
+  } catch (err) { onError({ message: err.message || 'An unexpected error occurred.' }); }
 }
 
-/**
- * Re-render a single hole with (potentially) different options.
- * Used by the per-hole regeneration controls in Step 3.
- *
- * @param {object} opts
- * @param {object} opts.holeWay        — original holeWay from generation
- * @param {object} opts.allFeatures    — full course feature set (from osmData)
- * @param {object|null} opts.elevationGrid
- * @param {{ latmin, lonmin, latmax, lonmax }} opts.bbox
- * @param {object} opts.colors
- * @param {object} opts.options        — may include overridden holeWidth / shortFilter
- * @returns {Promise<{ holeNum, par, holeImageUrl, greenImageUrl, holeWidth, holeHeight, greenWidth, greenHeight, holeWay }>}
- */
 export async function reRenderHole({ holeWay, allFeatures, elevationGrid, bbox, colors, options }) {
-  const holeNum = parseInt(holeWay.tags?.ref, 10) || 0;
-  const par     = parseInt(holeWay.tags?.par, 10) || null;
-
+  const holeNum = parseInt(holeWay.tags?.ref, 10) || 0, par = parseInt(holeWay.tags?.par, 10) || null;
   const features = categorizeFeatures(allFeatures, bbox, holeWay);
 
-  const holeCanvas = await renderHole({
-    holeWay, features, elevationGrid, bbox, colors, options, holeNum, par,
-  });
+  const holeResult = await renderHole({ holeWay, features, elevationGrid, bbox, colors, options, holeNum, par });
+  const greenResult = await renderGreenInset({ holeWay, features, bbox, colors, options, holeNum, par });
 
-  const greenCanvas = await renderGreenInset({
-    holeWay, features, bbox, colors, options, holeNum, par,
-  });
+  const holeSvg = holeResult.svgString;
+  const greenSvg = greenResult.svgString;
+  const holeImageUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(holeSvg);
+  const greenImageUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(greenSvg);
 
-  const holeWidth  = holeCanvas.width;
-  const holeHeight = holeCanvas.height;
-  const greenWidth  = greenCanvas.width;
-  const greenHeight = greenCanvas.height;
-  const holeImageUrl  = await canvasToDataUrl(holeCanvas);
-  holeCanvas.width = 1; holeCanvas.height = 1;
-  const greenImageUrl = await canvasToDataUrl(greenCanvas);
-  greenCanvas.width = 1; greenCanvas.height = 1;
-
-  return { holeNum, par, holeImageUrl, greenImageUrl, holeWidth, holeHeight, greenWidth, greenHeight, holeWay };
+  return { 
+    holeNum, par, holeImageUrl, greenImageUrl, holeSvg, greenSvg, 
+    holeWidth: holeResult.width, holeHeight: holeResult.height, greenWidth: greenResult.width, greenHeight: greenResult.height, holeWay 
+  };
 }
