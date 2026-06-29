@@ -1,3 +1,10 @@
+This is a fork of the excelent openyardage projec by @npilk
+
+# New features
+- SVG images
+- Fairway slopes
+- Visual change for better boundry clarity
+
 # OpenYardage
 
 Generate printable golf yardage books directly in your browser using course data from [OpenStreetMap](https://www.openstreetmap.org/). This is a Javascript port of [Hacker Yardage](https://github.com/npilk/hacker-yardage).
