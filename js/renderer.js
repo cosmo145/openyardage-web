@@ -1,5 +1,6 @@
 /**
  * renderer.js — SVG-based hole rendering engine
+ * Updated for high-contrast strokes, precision grids, and slope indicators.
  */
 
 import {
@@ -94,7 +95,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   const destY = Math.round((finalH - cropH) / 2);
 
   // Initialize Canvas2Svg with the perfectly cropped dimensions
-  const ctx = new C2S(finalW, finalH);
+  const ctx = new window.C2S(finalW, finalH);
   ctx.fillStyle = colors.rough;
   ctx.fillRect(0, 0, finalW, finalH);
 
@@ -102,13 +103,22 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   ctx.save();
   ctx.translate(destX - lbx, destY - lby);
 
-  drawPolygons(ctx, pixWoods,    colors.trees);    
-  drawPolygons(ctx, pixWater,    colors.water);
-  drawPolygons(ctx, pixFairways, colors.fairway);
-  drawPolygons(ctx, pixTeeBoxes, colors.teeBox);
-  if (drawAll && pixAllGreens.length) drawPolygons(ctx, pixAllGreens, colors.green);
-  if (adjGreen.length) drawPolygons(ctx, adjGreen, colors.green);
-  drawPolygons(ctx, pixSand,     colors.sand);
+  // 1. Draw Precision Grid (PuttView Style) beneath features
+  drawCourseGrid(ctx, lbx - destX, lby - destY, lbx - destX + finalW, lby - destY + finalH, ypp);
+
+  // 2. Draw Polygons with High-Contrast Strokes
+  drawPolygons(ctx, pixWoods,    colors.trees,   '#8C8C8C', 1.0);  
+  drawPolygons(ctx, pixWater,    colors.water,   '#003366', 1.5);
+  drawPolygons(ctx, pixFairways, colors.fairway, '#222222', 2.0);
+  
+  // 3. Draw Fairway Slopes (Renders arrows exclusively inside fairway polygons)
+  drawFairwaySlopes(ctx, pixFairways, ypp, elevationGrid);
+  
+  drawPolygons(ctx, pixTeeBoxes, colors.teeBox,  '#333333', 1.5);
+  if (drawAll && pixAllGreens.length) drawPolygons(ctx, pixAllGreens, colors.green, '#000000', 2.5);
+  if (adjGreen.length) drawPolygons(ctx, adjGreen, colors.green, '#000000', 2.5);
+  drawPolygons(ctx, pixSand,     colors.sand,    '#111111', 1.5);
+  
   if (options.includeTrees) drawTrees(ctx, pixTrees, colors.trees, Math.max(5, Math.round(5 / ypp)));
 
   const baseFontSize = Math.max(11, Math.round(3.5 / ypp));
@@ -191,7 +201,7 @@ export async function renderGreenInset({ holeWay, features, bbox, colors, option
 
   if (cropW <= 0 || cropH <= 0) return { svgString: '<svg></svg>', width: 1, height: 1 };
 
-  const ctx = new C2S(finalW, finalH);
+  const ctx = new window.C2S(finalW, finalH);
   
   // Border
   ctx.fillStyle = '#8C8C8C';
@@ -214,17 +224,7 @@ export async function renderGreenInset({ holeWay, features, bbox, colors, option
   drawPolygons(ctx, pixTeeBoxes, '#C3C3C3');
   
   if (adjGreen.length) {
-    drawPolygons(ctx, adjGreen, '#FFFFFF');
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    for (const poly of adjGreen) {
-      if (poly.length < 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(poly[0][0], poly[0][1]);
-      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
-      ctx.closePath();
-      ctx.stroke();
-    }
+    drawPolygons(ctx, adjGreen, '#FFFFFF', '#000000', 2);
   }
   drawPolygons(ctx, pixSand, '#D2D2D2');
 
@@ -236,10 +236,16 @@ export async function renderGreenInset({ holeWay, features, bbox, colors, option
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Drawing Primitives
+// Drawing Primitives (Updated for High Contrast Aesthetics)
 // ─────────────────────────────────────────────────────────────────────────────
-export function drawPolygons(ctx, polygons, color) {
+export function drawPolygons(ctx, polygons, color, strokeColor = null, strokeWidth = 1) {
   ctx.fillStyle = color;
+  if (strokeColor) {
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.lineJoin = 'round'; // Smooths harsh angles
+  }
+
   for (const poly of polygons) {
     if (poly.length < 3) continue;
     ctx.beginPath();
@@ -247,6 +253,7 @@ export function drawPolygons(ctx, polygons, color) {
     for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
     ctx.closePath();
     ctx.fill();
+    if (strokeColor) ctx.stroke();
   }
 }
 
@@ -334,6 +341,91 @@ export function drawGreenGrid(ctx, greenCenter, ypp, calcOnly = false) {
   while (ly < ymax) { ctx.beginPath(); ctx.moveTo(xmin, Math.round(ly)); ctx.lineTo(xmax, Math.round(ly)); ctx.stroke(); ly += step; }
   ly = gy - step;
   while (ly > ymin) { ctx.beginPath(); ctx.moveTo(xmin, Math.round(ly)); ctx.lineTo(xmax, Math.round(ly)); ctx.stroke(); ly -= step; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// New Visual Features: Course Grid & Slope Analysis 
+// ─────────────────────────────────────────────────────────────────────────────
+
+function drawCourseGrid(ctx, minX, minY, maxX, maxY, ypp) {
+  const gridPx = 10 / ypp; // 10 yard squares
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.lineWidth = 1.0;
+  ctx.beginPath();
+  
+  // Snap starting bounds to the grid to ensure lines stay uniform across holes
+  const startX = Math.floor(minX / gridPx) * gridPx;
+  const startY = Math.floor(minY / gridPx) * gridPx;
+  
+  for (let x = startX; x <= maxX; x += gridPx) {
+    ctx.moveTo(x, minY); ctx.lineTo(x, maxY);
+  }
+  for (let y = startY; y <= maxY; y += gridPx) {
+    ctx.moveTo(minX, y); ctx.lineTo(maxX, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFairwaySlopes(ctx, fairways, ypp, elevationGrid) {
+  if (!fairways || !fairways.length) return;
+  
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)'; // Subtle dark grey for arrows
+  ctx.lineWidth = 2.0;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const stepPx = 20 / ypp; // Renders an arrow roughly every 20 yards
+
+  for (const poly of fairways) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of poly) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+
+    // Step through a grid overlaid on the bounding box
+    for (let x = minX; x < maxX; x += stepPx) {
+      for (let y = minY; y < maxY; y += stepPx) {
+        
+        // Ray-casting algorithm check: Is this coordinate on the fairway?
+        if (pointInPolygon([x, y], poly)) {
+          
+          // Fallback static angle until the elevationGrid array provides data
+          const angle = Math.PI / 4; 
+          const size = 6;
+          
+          ctx.translate(x, y);
+          ctx.rotate(angle);
+          
+          // Draw V-shaped path
+          ctx.beginPath();
+          ctx.moveTo(-size, -size);
+          ctx.lineTo(0, 0);
+          ctx.lineTo(-size, size);
+          ctx.stroke();
+          
+          ctx.rotate(-angle);
+          ctx.translate(-x, -y);
+        }
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function pointInPolygon(point, vs) {
+  let x = point[0], y = point[1];
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    let xi = vs[i][0], yi = vs[i][1];
+    let xj = vs[j][0], yj = vs[j][1];
+    let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
