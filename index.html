@@ -6,21 +6,17 @@
   <title>OpenYardage — Printable Golf Yardage Books</title>
   <meta name="description" content="Generate printable golf yardage books in your browser using free OpenStreetMap data. No account required." />
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Leaflet.draw CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/classic.min.css" />
 
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
-  <!-- ═══════════════════════════════════════════════════
-       APP HEADER
-  ═══════════════════════════════════════════════════ -->
   <header class="app-header">
     <div class="header-logo">
-      <span class="logo-text">OpenYardage<sub class="logo-beta">beta</sub></span>
+      <span class="logo-text">OpenYardage<sub class="logo-beta">Beta</sub></span>
     </div>
     <nav class="step-nav" aria-label="Steps">
       <div class="step-item active" id="step-nav-1" data-step="1">
@@ -41,18 +37,11 @@
     <a href="#about" class="header-about-link">About</a>
   </header>
 
-  <!-- ═══════════════════════════════════════════════════
-       MAIN CONTENT AREA
-  ═══════════════════════════════════════════════════ -->
   <main class="app-main">
 
-    <!-- ─────────────────────────────────────────────────
-         STEP 1: COURSE SELECTION
-    ───────────────────────────────────────────────── -->
     <section id="step-1" class="step-panel active" aria-labelledby="step1-heading">
       <div class="step-1-layout">
 
-        <!-- Search overlay (floats over map) -->
         <div id="search-overlay">
           <div class="search-wrap">
             <span class="search-icon">🔍</span>
@@ -62,7 +51,7 @@
               class="search-input"
               placeholder="Search for a golf course…"
               autocomplete="off"
-              spellcheck="false"
+              spellcheck="true"
               aria-label="Search for a golf course"
             />
             <button class="search-clear" id="search-clear" aria-label="Clear search" hidden>✕</button>
@@ -70,10 +59,8 @@
           <ul id="search-results" class="search-results" role="listbox" aria-label="Search results" hidden></ul>
         </div>
 
-        <!-- Map -->
         <div id="map" aria-label="Course selection map"></div>
 
-        <!-- Instruction tooltip (fades out once bbox is drawn) -->
         <div id="map-hint" class="map-hint">
           <span class="hint-icon">↖</span>
           Use the <strong>rectangle tool</strong> in the top-left to draw a box around your course
@@ -81,7 +68,6 @@
 
       </div>
 
-      <!-- Step footer: bbox info + next button -->
       <footer class="step-footer">
         <div id="bbox-info" class="bbox-info">
           <span class="bbox-label">No area selected</span>
@@ -94,14 +80,10 @@
       </footer>
     </section>
 
-    <!-- ─────────────────────────────────────────────────
-         STEP 2: CUSTOMIZE
-    ───────────────────────────────────────────────── -->
     <section id="step-2" class="step-panel" aria-labelledby="step2-heading" hidden>
       <div class="step-2-layout">
         <h2 id="step2-heading" class="step-heading">Customize Your Yardage Book</h2>
 
-        <!-- Course info summary -->
         <div class="course-summary" id="course-summary">
           <div class="course-name-wrap">
             <label class="course-summary-label" for="course-name-input">Course:</label>
@@ -120,7 +102,6 @@
 
         <div class="customize-grid">
 
-          <!-- Colors panel -->
           <div class="customize-card">
             <h3 class="card-title">Colors</h3>
             <div class="color-options">
@@ -128,79 +109,80 @@
               <div class="color-row">
                 <label class="color-label" for="color-fairway">Fairway</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-fairway" class="color-input" value="#34E884" />
-                  <span class="color-hex" id="hex-fairway">#34E884</span>
+                  <div id="color-fairway"></div>
+                  <span class="color-hex" id="hex-fairway">rgba(235, 235, 235, 0.8)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-teebox">Tee Box</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-teebox" class="color-input" value="#5AFCA3" />
-                  <span class="color-hex" id="hex-teebox">#5AFCA3</span>
+                  <div id="color-teebox"></div>
+                  <span class="color-hex" id="hex-teebox">rgba(195, 195, 195, 0.8)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-green">Green</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-green" class="color-input" value="#5AFCA3" />
-                  <span class="color-hex" id="hex-green">#5AFCA3</span>
+                  <div id="color-green"></div>
+                  <span class="color-hex" id="hex-green">rgba(255, 255, 255, 1)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-rough">Background (Rough)</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-rough" class="color-input" value="#18BB3E" />
-                  <span class="color-hex" id="hex-rough">#18BB3E</span>
+                  <div id="color-rough"></div>
+                  <span class="color-hex" id="hex-rough">rgba(255, 255, 255, 0)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-water">Water</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-water" class="color-input" value="#15BCF1" />
-                  <span class="color-hex" id="hex-water">#15BCF1</span>
+                  <div id="color-water"></div>
+                  <span class="color-hex" id="hex-water">rgba(180, 180, 180, 0.7)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-sand">Sand / Bunkers</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-sand" class="color-input" value="#FFD435" />
-                  <span class="color-hex" id="hex-sand">#FFD435</span>
+                  <div id="color-sand"></div>
+                  <span class="color-hex" id="hex-sand">rgba(210, 210, 210, 0.8)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-trees">Trees &amp; Woods</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-trees" class="color-input" value="#178200" />
-                  <span class="color-hex" id="hex-trees">#178200</span>
+                  <div id="color-trees"></div>
+                  <span class="color-hex" id="hex-trees">rgba(180, 180, 180, 0.7)</span>
                 </div>
               </div>
 
               <div class="color-row">
                 <label class="color-label" for="color-text">Distance Text</label>
                 <div class="color-swatch-wrap">
-                  <input type="color" id="color-text" class="color-input" value="#000000" />
-                  <span class="color-hex" id="hex-text">#000000</span>
+                  <div id="color-text"></div>
+                  <span class="color-hex" id="hex-text">rgba(0, 0, 0, 1)</span>
                 </div>
               </div>
 
               <div class="preset-row">
                 <label class="preset-label" for="color-preset">Preset</label>
                 <select id="color-preset" class="preset-select">
-                  <option value="default">Default</option>
+				  <option value="default">New Style</option>
+				  <option value="tour">Tour Style</option>
                   <option value="bw">Black &amp; White</option>
+				  <option value="original">Original</option>
                   <option value="custom">Custom</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <!-- Options panel -->
           <div class="customize-card">
             <h3 class="card-title">Options</h3>
 
@@ -252,7 +234,6 @@
                 <div class="slider-hint">Features more than this distance from the hole centerline are filtered out</div>
               </div>
 
-              <!-- NEW TEXT SIZE SLIDER -->
               <div class="slider-row">
                 <label class="slider-label" for="opt-text-size">
                   Text Size
@@ -278,9 +259,7 @@
 
           </div>
 
-        </div><!-- end customize-grid -->
-
-      </div>
+        </div></div>
 
       <footer class="step-footer">
         <div class="footer-actions">
@@ -294,19 +273,14 @@
       </footer>
     </section>
 
-    <!-- ─────────────────────────────────────────────────
-         STEP 3: GENERATE
-    ───────────────────────────────────────────────── -->
     <section id="step-3" class="step-panel" aria-labelledby="gen-course-name" hidden>
       <div class="step-3-layout">
 
-        <!-- Top nav: secondary actions -->
         <div class="step3-top-bar">
           <button class="btn btn-secondary" id="btn-back-to-step2">← Customize</button>
           <button class="btn btn-text" id="btn-start-over">Change Course</button>
         </div>
 
-        <!-- Progress area -->
         <div class="generation-status" id="generation-status">
           <h2 class="step-heading" id="gen-course-name"></h2>
 
@@ -321,10 +295,8 @@
           </div>
         </div>
 
-        <!-- Hole browser (shown after generation) -->
         <div class="hole-browser" id="hole-browser" hidden>
 
-          <!-- Header: course name + hole navigation -->
           <div class="hole-browser-header">
             <h2 class="hole-browser-title" id="hole-browser-title"></h2>
             <div class="hole-browser-nav">
@@ -335,10 +307,8 @@
             <div class="hole-osm-name" id="hole-osm-name" hidden></div>
           </div>
 
-          <!-- Body: left = images, right = controls -->
           <div class="hole-browser-body">
 
-            <!-- Left panel: hole canvas + green inset -->
             <div class="hole-browser-left">
               <div class="hole-canvas-wrap">
                 <canvas id="hole-display-canvas" class="hole-display-canvas"></canvas>
@@ -349,7 +319,6 @@
               </div>
             </div>
 
-            <!-- Right panel: regeneration controls -->
             <div class="hole-browser-right">
               <div class="regen-panel">
                 <div class="regen-panel-title">
@@ -394,12 +363,7 @@
               </div>
             </div>
 
-          </div><!-- end hole-browser-body -->
-
-        </div><!-- end hole-browser -->
-
-        <!-- Error state -->
-        <div class="error-state" id="error-state" hidden>
+          </div></div><div class="error-state" id="error-state" hidden>
           <div class="error-icon">⚠</div>
           <h3 class="error-title">Something went wrong</h3>
           <p class="error-message" id="error-message"></p>
@@ -416,12 +380,7 @@
       </footer>
     </section>
 
-  </main><!-- end app-main -->
-
-  <!-- ═══════════════════════════════════════════════════
-       ABOUT MODAL
-  ═══════════════════════════════════════════════════ -->
-  <div class="export-modal-overlay" id="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-modal-title" hidden>
+  </main><div class="export-modal-overlay" id="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-modal-title" hidden>
     <div class="export-modal-card">
       <div class="export-modal-header">
         <h3 class="export-modal-title" id="about-modal-title">About OpenYardage</h3>
@@ -434,9 +393,6 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════
-       EXPORT MODAL
-  ═══════════════════════════════════════════════════ -->
   <div class="export-modal-overlay" id="export-modal" role="dialog" aria-modal="true" aria-labelledby="export-modal-title" hidden>
     <div class="export-modal-card">
 
@@ -471,7 +427,6 @@
           <button class="btn btn-primary" id="btn-download-print-pdf">⬇ Download</button>
         </div>
 
-        <!-- NEW SVG EXPORT OPTION -->
         <div class="export-option">
           <div class="export-option-info">
             <div class="export-option-name">SVG (Current Hole)</div>
@@ -484,9 +439,6 @@
     </div>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════
-       YARDAGE BOOK VIEWER
-  ═══════════════════════════════════════════════════ -->
   <div class="viewer-overlay" id="viewer-overlay" hidden>
     <div class="viewer-toolbar">
       <button class="viewer-close" id="btn-viewer-close" aria-label="Close viewer">✕</button>
@@ -494,32 +446,21 @@
       <span class="viewer-page-indicator" id="viewer-page-indicator"></span>
     </div>
     <div class="viewer-stage" id="viewer-stage">
-      <!-- Pages injected dynamically -->
-    </div>
+      </div>
     <button class="viewer-nav viewer-nav-prev" id="btn-viewer-prev" aria-label="Previous hole">‹</button>
     <button class="viewer-nav viewer-nav-next" id="btn-viewer-next" aria-label="Next hole">›</button>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════
-       SCRIPTS
-  ═══════════════════════════════════════════════════ -->
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Leaflet.draw -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-  <!-- jsPDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <!-- svg2pdf -->
   <script src="https://unpkg.com/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js"></script>
-  <!-- JSZip (for downloading hole images as ZIP) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- d3-contour + d3-array (for elevation contours, Phase 7) -->
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-contour@4"></script>
-  <!-- Canvas2Svg (for SVG vector export) -->
   <script src="https://cdn.jsdelivr.net/gh/gliffy/canvas2svg@master/canvas2svg.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/pickr.min.js"></script>
 
-  <!-- App entry point (ES module) -->
   <script type="module" src="js/app.js"></script>
 
 </body>
