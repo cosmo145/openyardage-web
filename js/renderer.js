@@ -163,12 +163,9 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   // Contours deferred to Phase 7
 
   // ── 8.5. Distance annotations ───────────────────────────────────────────────
-  // Font size based on yards-per-pixel so labels stay proportional whether the
-  // canvas covers one hole or an entire course.  Target: ~3 yards tall.
   // Apply the text size multiplier from options
   const baseFontSize = Math.max(11, Math.round(3.5 / ypp));
   const fontSize = baseFontSize * (options.textSizeMult || 1.0);
-  const fontSize = Math.max(11, Math.round(3.5 / ypp));
   const textColor = colors.text;
   const effectivePar = par ?? 4;
   const showBg = options.textBackground !== false;
@@ -1266,4 +1263,122 @@ function _getArraysMaxY(arrays) {
     }
   }
   return found ? maxY : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SVG Export Function
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function renderHoleSvg({ holeWay, features, elevationGrid, bbox, colors, options, holeNum, par }) {
+  // ── 1. Canvas dimensions ────────────────────────────────────────────────────
+  const { width, height } = getCanvasDimensions(bbox, MAX_CANVAS_PX);
+  const ypp = getYardsPerPixel(bbox, width, height);
+  const cx = width / 2, cy = height / 2;
+
+  // ── 2. Convert all features to pixel coordinates ────────────────────────────
+  const toPixels = (nodeArrays) =>
+    nodeArrays.map(nodes => wayToPixels(nodes, bbox, width, height));
+
+  const holePixels = wayToPixels(holeWay.nodes, bbox, width, height);
+  let pixFairways  = toPixels(features.fairways);
+  let pixTeeBoxes  = toPixels(features.teeBoxes);
+  let pixWater     = toPixels(features.waterHazards);
+  let pixSand      = toPixels(features.sandTraps);
+  let pixWoods     = toPixels(features.woods);
+  let pixTrees     = features.trees.map(n => wayToPixels([n], bbox, width, height)[0]);
+  let pixGreen     = features.green ? wayToPixels(features.green, bbox, width, height) : null;
+  let pixAllGreens = toPixels(features.allGreens || []);
+
+  // ── 3. Compute rotation angle ───────────────────────────────────────────────
+  const angle = getRotateAngle(holePixels);
+
+  // ── 4. Rotate everything around original canvas center ─────────────────────
+  const rotHole    = rotatePoints(holePixels, cx, cy, angle);
+  pixFairways      = rotatePointsList(pixFairways, cx, cy, angle);
+  pixTeeBoxes      = rotatePointsList(pixTeeBoxes, cx, cy, angle);
+  pixWater         = rotatePointsList(pixWater,    cx, cy, angle);
+  pixSand          = rotatePointsList(pixSand,     cx, cy, angle);
+  pixWoods         = rotatePointsList(pixWoods,    cx, cy, angle);
+  pixTrees         = rotatePoints(pixTrees, cx, cy, angle);
+  pixAllGreens     = rotatePointsList(pixAllGreens, cx, cy, angle);
+  const rotGreen   = pixGreen ? [rotatePoints(pixGreen, cx, cy, angle)] : [];
+
+  // ── 5. New canvas size that contains the rotated content ───────────────────
+  const { newWidth, newHeight, offsetX, offsetY } = getRotatedCanvasSize(width, height, angle);
+
+  // ── 6. Translate into new coordinate space ─────────────────────────────────
+  const adj = (arrays) => translateFeatures(arrays, -offsetX, -offsetY);
+
+  pixFairways  = adj(pixFairways);
+  pixTeeBoxes  = adj(pixTeeBoxes);
+  pixWater     = adj(pixWater);
+  pixSand      = adj(pixSand);
+  pixWoods     = adj(pixWoods);
+  pixTrees     = pixTrees.map(([x, y]) => [x + offsetX, y + offsetY]);
+  pixAllGreens = adj(pixAllGreens);
+  const adjGreen = adj(rotGreen);
+  const adjHole  = translateFeatures([rotHole], -offsetX, -offsetY)[0];
+
+  // ── 7. Filter features to this hole ────────────────────────────────────────
+  const drawAll = !!options.drawAllFeatures;
+  const fBase = {
+    filterYards: options.holeWidth,
+    shortFactor: options.shortFilter,
+    medFactor:   (options.shortFilter + 1) / 2,
+    drawAllFeatures: drawAll,
+  };
+  pixFairways = filterFeatures(adjHole, pixFairways, ypp, par, { ...fBase, isFairway: true });
+  pixTeeBoxes = filterFeatures(adjHole, pixTeeBoxes, ypp, par, { ...fBase, isTeeBox: true });
+  pixSand     = filterFeatures(adjHole, pixSand,     ypp, par, fBase);
+  pixWoods    = filterFeatures(adjHole, pixWoods,    ypp, par, { filterYards: null });
+  pixWater    = filterFeatures(adjHole, pixWater,    ypp, par, { filterYards: null });
+  const filteredTreeArrays = filterFeatures(adjHole, pixTrees.map(p => [p]), ypp, par, { filterYards: 25, drawAllFeatures: drawAll });
+  pixTrees = filteredTreeArrays.map(a => a[0]);
+  if (drawAll) {
+    pixAllGreens = filterFeatures(adjHole, pixAllGreens, ypp, par, { filterYards: fBase.filterYards, drawAllFeatures: true });
+  }
+
+  // ── 8. Draw on SVG Context ───────────────────────────────────────────────
+  const ctx = new C2S(newWidth, newHeight);
+  ctx.fillStyle = colors.rough;
+  ctx.fillRect(0, 0, newWidth, newHeight);
+
+  drawPolygons(ctx, pixWoods,    colors.trees);    
+  drawPolygons(ctx, pixWater,    colors.water);
+  drawPolygons(ctx, pixFairways, colors.fairway);
+  drawPolygons(ctx, pixTeeBoxes, colors.teeBox);
+  if (drawAll && pixAllGreens.length) drawPolygons(ctx, pixAllGreens, colors.green);
+  if (adjGreen.length) drawPolygons(ctx, adjGreen, colors.green);
+  drawPolygons(ctx, pixSand,     colors.sand);
+  if (options.includeTrees) {
+    drawTrees(ctx, pixTrees, colors.trees, Math.max(5, Math.round(5 / ypp)));
+  }
+
+  // ── 8.5. Distance annotations ───────────────────────────────────────────────
+  const baseFontSize = Math.max(11, Math.round(3.5 / ypp));
+  const fontSize = baseFontSize * (options.textSizeMult || 1.0);
+  const textColor = colors.text;
+  const effectivePar = par ?? 4;
+  const showBg = options.textBackground !== false;
+
+  if (effectivePar === 3) {
+    _drawGreenDistancesMin(ctx, adjHole, pixTeeBoxes, ypp, fontSize, textColor, options.inMeters, 1, showBg);
+  } else {
+    const { right: r1, left: l1 } = drawCarryDistances(ctx, adjHole, pixTeeBoxes, pixSand,  ypp, fontSize, textColor, options.inMeters, showBg);
+    const { right: r2, left: l2 } = drawCarryDistances(ctx, adjHole, pixTeeBoxes, pixWater, ypp, fontSize, textColor, options.inMeters, showBg);
+    const totalRight = r1 + r2;
+    const totalLeft  = l1 + l2;
+    drawExtraCarries(ctx, adjHole, pixTeeBoxes, totalRight, totalLeft, ypp, fontSize, textColor, options.inMeters, showBg);
+
+    _drawGreenDistancesMin(ctx, adjHole, pixSand,      ypp, fontSize, textColor, options.inMeters, 0, showBg);
+    _drawGreenDistancesMin(ctx, adjHole, pixWater,     ypp, fontSize, textColor, options.inMeters, 0, showBg);
+    _drawGreenDistancesMax(ctx, adjHole, pixFairways,  ypp, fontSize, textColor, options.inMeters, showBg);
+    if (options.includeTrees) {
+      _drawGreenDistancesTree(ctx, adjHole, pixTrees, ypp, fontSize, textColor, options.inMeters, showBg);
+    }
+
+    drawArcDistances(ctx, adjHole, ypp, 50, fontSize, textColor, options.inMeters, showBg);
+  }
+
+  return ctx.getSerializedSvg(true);
 }

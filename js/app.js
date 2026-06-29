@@ -8,6 +8,8 @@
 import { initMap } from './map.js';
 import { generateBook, reRenderHole } from './generator.js';
 import { assemblePdf, assemblePrintPdf } from './pdf.js';
+import { renderHoleSvg } from './renderer.js';
+import { categorizeFeatures } from './osm.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Global Application State
@@ -41,12 +43,12 @@ export const AppState = {
     textBackground:  false,
     inMeters:        false,
     includeTopo:     false,
-    topoInterval:   2.0,   // meters
-    topoLabels:     true,
-    holeWidth:        50,    // yards from centerline
-    shortFilter:      1.0,   // multiplier for near-tee filtering
-    drawAllFeatures:  false, // skip all feature filtering
-	textSizeMult: 1.0, // New property for text scaling
+    topoInterval:    2.0,   // meters
+    topoLabels:      true,
+    holeWidth:       50,    // yards from centerline
+    shortFilter:     1.0,   // multiplier for near-tee filtering
+    drawAllFeatures: false, // skip all feature filtering
+    textSizeMult:    1.0,   // Text size multiplier
   },
 
   /** Generation state (updated by generator.js) */
@@ -137,8 +139,6 @@ const dom = {
   holeWidthVal:     document.getElementById('hole-width-val'),
   optDrawAll:       document.getElementById('opt-draw-all'),
 
-};
-
   // Step 2 — summary / course name
   courseNameInput: document.getElementById('course-name-input'),
   bboxSummary:     document.getElementById('bbox-summary'),
@@ -200,16 +200,16 @@ const dom = {
   holeBrowserRight:document.querySelector('.hole-browser-right'),
   holeOsmName:     document.getElementById('hole-osm-name'),
 
-  errorState:    document.getElementById('error-state'),
-  errorMessage:  document.getElementById('error-message'),
-  btnRetry:      document.getElementById('btn-retry'),
+  errorState:      document.getElementById('error-state'),
+  errorMessage:    document.getElementById('error-message'),
+  btnRetry:        document.getElementById('btn-retry'),
 
-  btnBackToStep2: document.getElementById('btn-back-to-step2'),
-  btnStartOver:   document.getElementById('btn-start-over'),
-  
-  optTextSize: document.getElementById('opt-text-size'), // New slider input
-  textSizeVal: document.getElementById('text-size-val'), // New span to show the value
-  
+  btnBackToStep2:  document.getElementById('btn-back-to-step2'),
+  btnStartOver:    document.getElementById('btn-start-over'),
+
+  optTextSize:     document.getElementById('opt-text-size'),
+  textSizeVal:     document.getElementById('text-size-val'),
+  btnDownloadSvg:  document.getElementById('btn-download-svg'),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,6 +349,14 @@ function bindOptionInputs() {
     AppState.options.drawAllFeatures = dom.optDrawAll.checked;
   });
 
+  if (dom.optTextSize) {
+    dom.optTextSize.addEventListener('input', () => {
+      const val = parseFloat(dom.optTextSize.value);
+      AppState.options.textSizeMult = val;
+      if (dom.textSizeVal) dom.textSizeVal.textContent = `${val.toFixed(1)}x`;
+    });
+  }
+
   // Course name (editable in step 2 summary)
   dom.courseNameInput.addEventListener('input', () => {
     AppState.courseName = dom.courseNameInput.value;
@@ -362,13 +370,6 @@ function bindOptionInputs() {
   dom.regenShortFilter.addEventListener('input', () => {
     dom.regenFilterVal.textContent = `${parseFloat(dom.regenShortFilter.value).toFixed(1)}×`;
   });
-
-	if (dom.optTextSize) {
-		dom.optTextSize.addEventListener('input', () => {
-		const val = parseFloat(dom.optTextSize.value);
-		AppState.options.textSizeMult = val;
-		if (dom.textSizeVal) dom.textSizeVal.textContent = `${val.toFixed(1)}x`;
-		}); 
 }
 
 /** Populate the course summary shown at bottom of Step 2 */
@@ -780,6 +781,39 @@ async function downloadZip() {
   }
 }
 
+async function downloadCurrentHoleSvg() {
+  if (!dom.btnDownloadSvg) return;
+  const index = currentHoleIndex;
+  const hole = AppState.generation.renderedHoles[index];
+  const osmData = AppState.generation.osmData;
+
+  dom.btnDownloadSvg.disabled = true;
+  const origText = dom.btnDownloadSvg.textContent;
+  dom.btnDownloadSvg.textContent = '⌛ Generating SVG…';
+
+  try {
+    const svgString = await renderHoleSvg({
+      holeWay: hole.holeWay,
+      features: categorizeFeatures(osmData.allFeatures, osmData.bbox, hole.holeWay),
+      elevationGrid: osmData.elevationGrid,
+      bbox: osmData.bbox,
+      colors: AppState.colors,
+      options: AppState.options,
+      holeNum: hole.holeNum,
+      par: hole.par
+    });
+
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    triggerBlobDownload(blob, `${safeFilename(AppState.courseName)}-hole-${hole.holeNum}.svg`);
+  } catch (err) {
+    console.error('SVG generation failed:', err);
+    alert('SVG generation failed: ' + err.message);
+  } finally {
+    dom.btnDownloadSvg.disabled = false;
+    dom.btnDownloadSvg.textContent = origText;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-Hole Regeneration
 // ─────────────────────────────────────────────────────────────────────────────
@@ -905,6 +939,13 @@ function bindNavButtons() {
   dom.btnDownloadPdf.addEventListener('click', () => { closeExportModal(); generateAndDownloadPdf(); });
   dom.btnDownloadPrintPdf.addEventListener('click', () => { closeExportModal(); generateAndDownloadPrintPdf(); });
   dom.btnDownloadZip.addEventListener('click', () => { closeExportModal(); downloadZip(); });
+
+  if (dom.btnDownloadSvg) {
+    dom.btnDownloadSvg.addEventListener('click', () => {
+      closeExportModal(); 
+      downloadCurrentHoleSvg();
+    });
+  }
 
   // Yardage book viewer
   dom.btnViewBook.addEventListener('click', openViewer);
