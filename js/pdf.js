@@ -74,12 +74,18 @@ async function drawHolePage(pdf, hole, colors, ox, oy) {
   pdf.rect(ox + RIGHT_X, oy, RIGHT_W, BOOKLET_H, 'F');
   const fitHole = fitImage(hole.holeWidth, hole.holeHeight, ox + RIGHT_X, oy, RIGHT_W, BOOKLET_H);
   
-  // Parse Hole SVG and remove viewBox to force scaling[cite: 10, 11]
   const holeSvgDoc = new DOMParser().parseFromString(hole.holeSvg, 'image/svg+xml').documentElement;
-  holeSvgDoc.removeAttribute('viewBox');
+  
+  // Explicitly set the coordinate mapping so svg2pdf knows how to scale it down
+  holeSvgDoc.setAttribute('viewBox', `0 0 ${hole.holeWidth} ${hole.holeHeight}`);
+  holeSvgDoc.setAttribute('width', fitHole.w);
+  holeSvgDoc.setAttribute('height', fitHole.h);
   
   await pdf.svg(holeSvgDoc, { 
-    x: fitHole.x, y: fitHole.y, width: fitHole.w, height: fitHole.h 
+    x: fitHole.x, 
+    y: fitHole.y, 
+    width: fitHole.w, 
+    height: fitHole.h 
   });
 
   // Left Panel: White background
@@ -122,12 +128,18 @@ async function drawHolePage(pdf, hole, colors, ox, oy) {
   const gi = fitImage(hole.greenWidth, hole.greenHeight, ox + BM, oy + GREEN_TOP, GREEN_W, GREEN_H);
   const bottomY = oy + GREEN_TOP + GREEN_H - gi.h;
   
-  // Parse Green SVG and remove viewBox to force scaling[cite: 10, 11]
   const greenSvgDoc = new DOMParser().parseFromString(hole.greenSvg, 'image/svg+xml').documentElement;
-  greenSvgDoc.removeAttribute('viewBox');
+  
+  // Explicitly set the coordinate mapping so svg2pdf knows how to scale it down
+  greenSvgDoc.setAttribute('viewBox', `0 0 ${hole.greenWidth} ${hole.greenHeight}`);
+  greenSvgDoc.setAttribute('width', gi.w);
+  greenSvgDoc.setAttribute('height', gi.h);
   
   await pdf.svg(greenSvgDoc, { 
-    x: gi.x, y: bottomY, width: gi.w, height: gi.h 
+    x: gi.x, 
+    y: bottomY, 
+    width: gi.w, 
+    height: gi.h 
   });
 }
 
