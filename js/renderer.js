@@ -369,51 +369,72 @@ function drawCourseGrid(ctx, minX, minY, maxX, maxY, ypp) {
 }
 
 function drawFairwaySlopes(ctx, fairways, ypp, elevationGrid) {
-  if (!fairways || !fairways.length) return;
+	
+	// Debug log to see if the grid is reaching the renderer
+  console.log("Elevation Grid:", elevationGrid); 
+
+  if (!fairways || !fairways.length || !elevationGrid) {
+    console.warn("Skipping slope drawing: Missing fairways or elevation grid.");
+    return;
+  }
   
+  if (!fairways || !fairways.length || !elevationGrid) return;
   ctx.save();
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)'; // Subtle dark grey for arrows
-  ctx.lineWidth = 2.0;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.lineWidth = 1.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-
-  const stepPx = 20 / ypp; // Renders an arrow roughly every 20 yards
-
+  
+  const stepPx = 30 / ypp; // Space between arrows
+  
   for (const poly of fairways) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const [x, y] of poly) {
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
-
-    // Step through a grid overlaid on the bounding box
+    
     for (let x = minX; x < maxX; x += stepPx) {
       for (let y = minY; y < maxY; y += stepPx) {
-        
-        // Ray-casting algorithm check: Is this coordinate on the fairway?
         if (pointInPolygon([x, y], poly)) {
+          // 1. Get slope angle from elevation grid
+          // Assuming elevationGrid provides a way to get slope vector [dx, dy]
+          const slopeVector = getSlopeAtPoint(x, y, elevationGrid, ypp);
+          const angle = Math.atan2(slopeVector.dy, slopeVector.dx);
           
-          // Fallback static angle until the elevationGrid array provides data
-          const angle = Math.PI / 4; 
-          const size = 6;
-          
-          ctx.translate(x, y);
+          const size = 5;
+          ctx.translate(x, y); 
           ctx.rotate(angle);
           
-          // Draw V-shaped path
-          ctx.beginPath();
-          ctx.moveTo(-size, -size);
-          ctx.lineTo(0, 0);
-          ctx.lineTo(-size, size);
+          // Draw arrowhead pointing downhill
+          ctx.beginPath(); 
+          ctx.moveTo(-size, 0); 
+          ctx.lineTo(size, 0); // Shaft
+          ctx.moveTo(size/2, -size/2); 
+          ctx.lineTo(size, 0); 
+          ctx.lineTo(size/2, size/2); // Arrowhead
           ctx.stroke();
           
-          ctx.rotate(-angle);
+          ctx.rotate(-angle); 
           ctx.translate(-x, -y);
         }
       }
     }
   }
   ctx.restore();
+}
+
+function getSlopeAtPoint(x, y, grid, ypp) {
+    // Basic numerical gradient calculation
+    // Look at elevation changes in x and y directions
+    const scale = 1 / ypp;
+    const z1 = getElevationAt(x - scale, y, grid);
+    const z2 = getElevationAt(x + scale, y, grid);
+    const z3 = getElevationAt(x, y - scale, grid);
+    const z4 = getElevationAt(x, y + scale, grid);
+    
+    // Gradient vector [dx, dy]
+    return { dx: z2 - z1, dy: z4 - z3 };
 }
 
 function pointInPolygon(point, vs) {
