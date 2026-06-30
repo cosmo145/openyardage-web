@@ -12,7 +12,7 @@ export const AppState = {
   bbox: null,
   courseName: '',
   colors: {
-    fairway:  'rgba(222, 234, 205, 1)',
+    fairway:  'rgba(222, 242, 195, 1)',
     teeBox:   'rgba(199, 209, 151, 1)',
     green:    'rgba(178, 231, 114, 1)',
     rough:    'rgba(0, 0, 0, 0)',
@@ -80,7 +80,7 @@ const PRESETS = {
     text:     'rgba(0, 0, 0, 1)',
   },
   default: { // Puttview Style
-    fairway:  'rgba(222, 234, 205, 1)',
+    fairway:  'rgba(222, 242, 195, 1)',
     teeBox:   'rgba(199, 209, 151, 1)',
     green:    'rgba(178, 231, 114, 1)',
     rough:    'rgba(0, 0, 0, 0)',
