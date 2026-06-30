@@ -14,7 +14,7 @@ export const AppState = {
   colors: {
     fairway:  'rgba(222, 234, 205, 1)',
     teeBox:   'rgba(199, 209, 151, 1)',
-    green:    'rgba(185, 214, 150, 1)',
+    green:    'rgba(178, 231, 114, 1)',
     rough:    'rgba(0, 0, 0, 0)',
     water:    'rgba(151, 217, 215, 1)',
     sand:     'rgba(251, 230, 191, 1)',
@@ -82,7 +82,7 @@ const PRESETS = {
   default: { // Puttview Style
     fairway:  'rgba(222, 234, 205, 1)',
     teeBox:   'rgba(199, 209, 151, 1)',
-    green:    'rgba(185, 214, 150, 1)',
+    green:    'rgba(178, 231, 114, 1)',
     rough:    'rgba(0, 0, 0, 0)',
     water:    'rgba(151, 217, 215, 1)',
     sand:     'rgba(251, 230, 191, 1)',
