@@ -69,9 +69,12 @@ function addCoverPage(pdf, courseName, colors, w, h, ox = 0, oy = 0) {
 }
 
 async function drawHolePage(pdf, hole, colors, ox, oy) {
-  // Right Panel: Draw Rough Background then vector SVG
-  pdf.setFillColor(...hexToRgb(colors.rough));
+  // Right Panel: Draw Background then vector SVG
+  // Uses the new background color, falling back to rough if missing
+  const bgColor = colors.background || colors.rough || 'rgba(255, 255, 255, 1)';
+  pdf.setFillColor(...colorToRgb(bgColor));
   pdf.rect(ox + RIGHT_X, oy, RIGHT_W, BOOKLET_H, 'F');
+  
   const fitHole = fitImage(hole.holeWidth, hole.holeHeight, ox + RIGHT_X, oy, RIGHT_W, BOOKLET_H);
   
   const holeSvgDoc = new DOMParser().parseFromString(hole.holeSvg, 'image/svg+xml').documentElement;
@@ -169,7 +172,22 @@ export function fitImage(imgW, imgH, boxX, boxY, boxW, boxH) {
   return { x: boxX + (boxW - w) / 2, y: boxY + (boxH - h) / 2, w, h };
 }
 
-export function hexToRgb(hex) {
-  const h = hex.replace('#', '');
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+export function colorToRgb(colorStr) {
+  if (!colorStr) return [255, 255, 255];
+  
+  // Handle rgb() and rgba() strings
+  if (colorStr.startsWith('rgb')) {
+    const match = colorStr.match(/\d+/g);
+    if (match && match.length >= 3) {
+      return [parseInt(match[0], 10), parseInt(match[1], 10), parseInt(match[2], 10)];
+    }
+  }
+  
+  // Handle hex strings (fallback)
+  const h = colorStr.replace('#', '');
+  if (h.length >= 6) {
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  
+  return [255, 255, 255];
 }
