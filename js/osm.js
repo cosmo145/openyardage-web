@@ -122,6 +122,7 @@ export function categorizeFeatures(osmResult, bbox, holeWay) {
   const sandTraps    = [];
   const teeBoxes     = [];
   const fairways     = [];
+  const rough        = [];
   const waterHazards = [];
   const woods        = [];
   const trees        = [];
@@ -151,6 +152,7 @@ export function categorizeFeatures(osmResult, bbox, holeWay) {
       case 'water_hazard':
       case 'lateral_water_hazard': waterHazards.push(way.nodes); break;
       case 'fairway':              fairways.push(way.nodes);     break;
+	  case 'rough':                rough.push(way.nodes);        break;
       case 'woods':                woods.push(way.nodes);        break;
       case 'green':                allGreens.push(way.nodes);    break;
     }
@@ -190,7 +192,7 @@ export function categorizeFeatures(osmResult, bbox, holeWay) {
   const coastlinePolygons = coastlineToPolygons(osmResult.ways, bbox);
   waterHazards.push(...coastlinePolygons);
 
-  return { sandTraps, teeBoxes, fairways, waterHazards, woods, trees, green, allGreens };
+  return { sandTraps, teeBoxes, fairways, rough, waterHazards, woods, trees, green, allGreens };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

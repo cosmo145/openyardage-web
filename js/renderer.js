@@ -20,6 +20,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
 
   const holePixels = wayToPixels(holeWay.nodes, bbox, width, height);
   let pixFairways  = toPixels(features.fairways);
+  let pixRough     = toPixels(features.rough || []);
   let pixTeeBoxes  = toPixels(features.teeBoxes);
   let pixWater     = toPixels(features.waterHazards);
   let pixSand      = toPixels(features.sandTraps);
@@ -32,6 +33,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
 
   const rotHole    = rotatePoints(holePixels, cx, cy, angle);
   pixFairways      = rotatePointsList(pixFairways, cx, cy, angle);
+  pixRough         = rotatePointsList(pixRough, cx, cy, angle);
   pixTeeBoxes      = rotatePointsList(pixTeeBoxes, cx, cy, angle);
   pixWater         = rotatePointsList(pixWater,    cx, cy, angle);
   pixSand          = rotatePointsList(pixSand,     cx, cy, angle);
@@ -44,6 +46,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   const adj = (arrays) => translateFeatures(arrays, -offsetX, -offsetY);
 
   pixFairways  = adj(pixFairways);
+  pixRough     = adj(pixRough);
   pixTeeBoxes  = adj(pixTeeBoxes);
   pixWater     = adj(pixWater);
   pixSand      = adj(pixSand);
@@ -57,6 +60,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   const fBase = { filterYards: options.holeWidth, shortFactor: options.shortFilter, medFactor: (options.shortFilter + 1) / 2, drawAllFeatures: drawAll };
   
   pixFairways = filterFeatures(adjHole, pixFairways, ypp, par, { ...fBase, isFairway: true });
+  pixRough    = filterFeatures(adjHole, pixRough, ypp, par, { filterYards: null }); // ADD THI
   pixTeeBoxes = filterFeatures(adjHole, pixTeeBoxes, ypp, par, { ...fBase, isTeeBox: true });
   pixSand     = filterFeatures(adjHole, pixSand,     ypp, par, fBase);
   pixWoods    = filterFeatures(adjHole, pixWoods,    ypp, par, { filterYards: null });
@@ -96,7 +100,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
 
   // Initialize Canvas2Svg with the perfectly cropped dimensions
   const ctx = new window.C2S(finalW, finalH);
-  ctx.fillStyle = colors.rough;
+  ctx.fillStyle = colors.background;
   ctx.fillRect(0, 0, finalW, finalH);
 
   // Translate the massive coordinate space to fit inside our crop window
@@ -109,6 +113,7 @@ export async function renderHole({ holeWay, features, elevationGrid, bbox, color
   // 2. Draw Polygons with High-Contrast Strokes
   drawPolygons(ctx, pixWoods,    colors.trees,   '#8C8C8C', 1.0);  
   drawPolygons(ctx, pixWater,    colors.water,   '#003366', 1.5);
+  drawPolygons(ctx, pixRough,    colors.rough,   '#C0C0C0', 1.0);
   drawPolygons(ctx, pixFairways, colors.fairway, '#222222', 2.0);
   
   // 3. Draw Fairway Slopes (Renders arrows exclusively inside fairway polygons)
