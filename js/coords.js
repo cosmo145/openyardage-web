@@ -2,23 +2,23 @@
  * coords.js — Coordinate transforms, rotation math, and distance calculations
  *
  * Ports the following Python functions from hyformulas.py:
- *   translateWaytoNP      → wayToPixels()
- *   translateNodestoNP    → nodesToPixels()
- *   getRotateAngle        → getRotateAngle()
- *   rotateArray           → rotatePoints()
- *   rotateArrayList       → rotatePointsList()
- *   adjustRotatedFeatures → translateFeatures()
- *   filterArrayList       → filterFeatures()
- *   distToLine            → distToLine()
- *   getLatDegreeDistance  → getLatYardsPerDegree()
- *   getLonDegreeDistance  → getLonYardsPerDegree()
+ * translateWaytoNP      → wayToPixels()
+ * translateNodestoNP    → nodesToPixels()
+ * getRotateAngle        → getRotateAngle()
+ * rotateArray           → rotatePoints()
+ * rotateArrayList       → rotatePointsList()
+ * adjustRotatedFeatures → translateFeatures()
+ * filterArrayList       → filterFeatures()
+ * distToLine            → distToLine()
+ * getLatDegreeDistance  → getLatYardsPerDegree()
+ * getLonDegreeDistance  → getLonYardsPerDegree()
  *
  * Coordinate convention (preserved from Python):
- *   - After wayToPixels: point = [x, y] where
- *     x = (lat - latmin)/(latmax - latmin) * width   (latitude-based, horizontal)
- *     y = (lon - lonmin)/(lonmax - lonmin) * height  (longitude-based, vertical)
- *   - This matches the Python "swap" that converts (lon-col, lat-row) → (lat-x, lon-y)
- *   - Canvas 2D convention: x = column (horizontal), y = row (vertical) ✓
+ * - After wayToPixels: point = [x, y] where
+ * x = (lat - latmin)/(latmax - latmin) * width   (latitude-based, horizontal)
+ * y = (lon - lonmin)/(lonmax - lonmin) * height  (longitude-based, vertical)
+ * - This matches the Python "swap" that converts (lon-col, lat-row) → (lat-x, lon-y)
+ * - Canvas 2D convention: x = column (horizontal), y = row (vertical) ✓
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,10 +99,8 @@ export function getMidpointAngle(holePixels) {
  * @returns {number}  degrees
  */
 function _computeAngle([x2, y2], [x, y]) {
-  // from = tee = [x2, y2], to = green = [x, y]
   const bigy   = Math.max(y, y2);
   const smally = Math.min(y, y2);
-
   const numerator   = bigy - smally;
   const denominator = Math.sqrt((x2 - x) ** 2 + (bigy - smally) ** 2);
 
@@ -110,11 +108,9 @@ function _computeAngle([x2, y2], [x, y]) {
 
   let angle = (Math.acos(numerator / denominator) * 180) / Math.PI;
 
-  // Quadrant adjustments — matches Python exactly
-  if      (y > y2 && x > x2) angle = 180 - angle;   // green lower-right of tee
-  else if (y > y2 && x < x2) angle = 180 + angle;   // green lower-left of tee
-  else if (y < y2 && x < x2) angle = 360 - angle;   // green upper-left of tee
-  // else: green upper-right — base case, angle unchanged
+  if      (y > y2 && x > x2) angle = 180 - angle;
+  else if (y > y2 && x < x2) angle = 180 + angle;
+  else if (y < y2 && x < x2) angle = 360 - angle;
 
   return angle;
 }
@@ -134,7 +130,7 @@ function _computeAngle([x2, y2], [x, y]) {
  * @returns {Array<[number, number]>}
  */
 export function rotatePoints(points, cx, cy, angleDeg) {
-  const rad = (-angleDeg * Math.PI) / 180;  // negate to match Python's Rotate2D(-angle)
+  const rad = (-angleDeg * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   return points.map(([x, y]) => {
@@ -212,14 +208,10 @@ export function filterFeatures(holeCenterline, features, yardsPerPixel, par, opt
   // null = skip filtering entirely (used for water hazards, woods)
   if (filterYards === null || filterYards === undefined) return features;
 
-  const { bbXMin, bbYMin, bbXMax, bbYMax } = _createHoleBoundingBox(holeCenterline, yardsPerPixel);
+  const { bbXMin, bbYMin, bbXMax, bbYMax } = _createHoleBoundingBox(holeCenterline, yardsPerPixel, filterYards);
 
-  const green    = holeCenterline[holeCenterline.length - 1];
-  const tee      = holeCenterline[0];
-  const midpoint = holeCenterline.length > 2 ? holeCenterline[1] : _midpoint(tee, green);
-
+  const green = holeCenterline[holeCenterline.length - 1];
   const par4plus = par === 3 ? 0 : 1;
-  // Tee-box filter: push the lower y-bound up to exclude tee boxes near the green
   const teeBoxFilter = isTeeBox ? (90 / yardsPerPixel + par4plus * (140 / yardsPerPixel)) : 0;
 
   const small = filterYards * shortFactor;
@@ -267,23 +259,14 @@ export function filterFeatures(holeCenterline, features, yardsPerPixel, par, opt
       if (maxY < bbYMin || minY > bbYMax) return false;
     }
 
-    // Centerline distance check.
-    // For fairways, use the minimum distance from any vertex to the centerline — this
-    // handles large/shared fairways whose centroid may be far from the current hole's
-    // centerline even though part of the fairway clearly belongs to it.
-    // For other features, centroid distance is sufficient.
+    // Centerline distance check using full polyline path
     let distYards;
     if (isFairway) {
       distYards = array.reduce((best, p) => {
-        const d = p[1] < midpoint[1]
-          ? distToLine(p, midpoint, green, yardsPerPixel)
-          : distToLine(p, midpoint, tee,   yardsPerPixel);
-        return Math.min(best, d);
+        return Math.min(best, _distToPolyline(p, holeCenterline, yardsPerPixel));
       }, Infinity);
-    } else if (cy < midpoint[1]) {
-      distYards = distToLine([cx, cy], midpoint, green, yardsPerPixel);
     } else {
-      distYards = distToLine([cx, cy], midpoint, tee, yardsPerPixel);
+      distYards = _distToPolyline([cx, cy], holeCenterline, yardsPerPixel);
     }
 
     // Apply tighter filter near the tee (par 3s skip this).
@@ -305,7 +288,7 @@ export function filterFeatures(holeCenterline, features, yardsPerPixel, par, opt
  * @param {number} ypp
  * @returns {{ bbXMin, bbYMin, bbXMax, bbYMax }}
  */
-function _createHoleBoundingBox(holePoints, ypp) {
+function _createHoleBoundingBox(holePoints, ypp, filterYards) {
   let minX =  Infinity, minY =  Infinity;
   let maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of holePoints) {
@@ -315,20 +298,33 @@ function _createHoleBoundingBox(holePoints, ypp) {
     if (y > maxY) maxY = y;
   }
 
-  let bbXMin = minX - 50 / ypp;
-  let bbXMax = maxX + 50 / ypp;
+  const pad = (filterYards || 50) / ypp;
+  let bbXMin = minX - pad;
+  let bbXMax = maxX + pad;
   const bbYMin = minY - 30 / ypp;   // 30 yards past green
   const bbYMax = maxY + 10 / ypp;   // 10 yards behind tee
 
-  // Trim if wider than 125 yards, but keep at least 15 yards from centerline
+  // Trim logic dynamically scaled by custom filter settings
+  const maxSpread = Math.max(125, filterYards * 2.5);
   const xSpread = (bbXMax - bbXMin) * ypp;
-  if (xSpread > 125) {
-    const trim = (xSpread - 125) / 2 / ypp;
+  if (xSpread > maxSpread) {
+    const trim = (xSpread - maxSpread) / 2 / ypp;
     bbXMin = Math.min(bbXMin + trim, minX - 15 / ypp);
     bbXMax = Math.max(bbXMax - trim, maxX + 15 / ypp);
   }
 
   return { bbXMin, bbYMin, bbXMax, bbYMax };
+}
+
+/** Calculate shortest distance from a point to a polyline. */
+function _distToPolyline(point, polyline, yardsPerPixel) {
+  if (polyline.length < 2) return 0;
+  let minDist = Infinity;
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const d = distToLine(point, polyline[i], polyline[i+1], yardsPerPixel);
+    if (d < minDist) minDist = d;
+  }
+  return minDist;
 }
 
 /** Average of two points */
@@ -353,15 +349,20 @@ export function distToLine(point, lineP1, lineP2, yardsPerPixel) {
 
   const dx = x2 - x1;
   const dy = y2 - y1;
-  const len = Math.sqrt(dx * dx + dy * dy);
+  const l2 = dx * dx + dy * dy;
 
-  if (len === 0) {
+  if (l2 === 0) {
     return Math.sqrt((x0 - x1) ** 2 + (y0 - y1) ** 2) * yardsPerPixel;
   }
 
-  const a = dy, b = -dx;
-  const c = -(a * x1 + b * y1);
-  return (Math.abs(a * x0 + b * y0 + c) / len) * yardsPerPixel;
+  // Calculate projection constraint to keep checking isolated strictly to the segment
+  let t = ((x0 - x1) * dx + (y0 - y1) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+
+  return Math.sqrt((x0 - projX) ** 2 + (y0 - projY) ** 2) * yardsPerPixel;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -417,13 +418,13 @@ export function getYardsPerPixel(bbox, imageWidth, imageHeight) {
  * Equivalent to Python: generateImage sizing logic.
  *
  * Returns { width, height } where:
- *   width  = lat-based dimension (columns)
- *   height = lon-based dimension (rows)
+ * width  = lat-based dimension (columns)
+ * height = lon-based dimension (rows)
  *
  * Resolution / memory trade-offs (worst case = square bbox at 45° rotation):
- *   3 000px → rotated canvas ~4 200×4 200 (~72 MB)   — original, too coarse
- *   6 000px → rotated canvas ~8 500×8 500 (~290 MB)  — good; comfortably exceeds 300 DPI for PDF
- *  10 000px → rotated canvas ~14 100×14 100 (~800 MB) — risky on low-RAM devices; overkill for print
+ * 3 000px → rotated canvas ~4 200×4 200 (~72 MB)   — original, too coarse
+ * 6 000px → rotated canvas ~8 500×8 500 (~290 MB)  — good; comfortably exceeds 300 DPI for PDF
+ * 10 000px → rotated canvas ~14 100×14 100 (~800 MB) — risky on low-RAM devices; overkill for print
  *
  * @param {{ latmin, lonmin, latmax, lonmax }} bbox
  * @param {number} [maxPx=6000]
